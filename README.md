@@ -8,7 +8,7 @@
 
 ## 2 软硬件环境
 
-![image-20230905201920003](/Users/hjzhang/HPC/竞赛/黑客松/文章/images/env.png)
+![image-20230905201920003](./images/env.png)
 
 ## 3 优化方法
 
@@ -16,7 +16,7 @@
 
 Thundersvm 的训练部分架构大致如下图所示，本项目优化的模型为Thundersvm中的C_SVC，其处理的问题为二分类问题。SVC训练过程会多用化多个kernel，其中占据整体运行时间90%以上的kernel为kernelMartix_kernel中的csr_dns_mul，该部分原代码中是调用了Eigen中的稀疏矩阵乘法。因此整体SVC模型训练的性能瓶颈在于该稀疏矩阵乘法算子，后续的优化也围绕着该kernel上。
 
-<img src="/Users/hjzhang/HPC/竞赛/黑客松/文章/images/program.png" alt="program" style="zoom:50%;" />
+<img src="./images/program.png" alt="program" style="zoom:50%;" />
 
 #### 3.2 移植Intel GPU
 
@@ -24,7 +24,7 @@ Thundersvm 的训练部分架构大致如下图所示，本项目优化的模型
 
 其中稀疏矩阵乘法kernel的移植前后代码如下图所示。
 
-<img src="/Users/hjzhang/HPC/竞赛/黑客松/文章/images/opt1_code.png" alt="opt1_code" style="zoom:67%;" />
+<img src="./images/opt1_code.png" alt="opt1_code" style="zoom:67%;" />
 
 移植到Intel GPU上后，相比于原代码加速比达到了10.7。
 
@@ -38,7 +38,7 @@ Thundersvm 的训练部分架构大致如下图所示，本项目优化的模型
 - Tile 0负责存储绝大部分的数据，同时执行计算。
 - Tile1~3负责在计算GEMM时进行协同计算，提高计算速度。
 
-<img src="/Users/hjzhang/HPC/竞赛/黑客松/文章/images/opt2_1.png" alt="opt2_1" style="zoom:50%;" />
+<img src="./images/opt2_1.png" alt="opt2_1" style="zoom:50%;" />
 
 数据划分如下图所示，将dns_data（稀疏矩阵乘法对应的矩阵A）沿着M维度切分成4份并分配给对应的GPU Tile。具体数据划分的细节如下：
 
@@ -46,7 +46,7 @@ Thundersvm 的训练部分架构大致如下图所示，本项目优化的模型
 - dns_data：将 dns_data 均匀分为四份，分别交给四个Tile 计算以获得加速性能。
 - 其他数据：直接存放于Tile 0中。
 
-<img src="/Users/hjzhang/HPC/竞赛/黑客松/文章/images/opt3.png" alt="image-20230905203538738" style="zoom:50%;" />
+<img src="./images/opt3.png" alt="image-20230905203538738" style="zoom:50%;" />
 
 使用4个Intel GPU Tile加速后，整体的SVC训练速度提高了2.7倍。
 
@@ -54,16 +54,16 @@ Thundersvm 的训练部分架构大致如下图所示，本项目优化的模型
 
 在计算矩阵乘法时，程序每次都会重新申请内存，效率较低。通过将内存进行了预分配，减少了内存的反复申请。我们在编译时也加入了AoT编译，减少即时编译的时间。 该优化提高了约7%的性能。部分代码如下所示：
 
-<img src="/Users/hjzhang/HPC/竞赛/黑客松/文章/images/opt3.png" alt="opt4" style="zoom:50%;" />
+<img src="./images/opt4.png" alt="opt4" style="zoom:50%;" />
 
 #### 3.5 减少handle创建次数
 
 MKL矩阵乘法计算时，会涉及到handle的反复创建，但由于k_mat不会变化，只需在全局创建一次即可。该优化的加速比为1.15。
 
-<img src="/Users/hjzhang/HPC/竞赛/黑客松/文章/images/opt5.png" alt="image-20230905204705278" style="zoom:50%;" />
+<img src="./images/opt5.png" alt="image-20230905204705278" style="zoom:50%;" />
 
 ## 4 总结
 
-<img src="/Users/hjzhang/HPC/竞赛/黑客松/文章/images/sum.png" alt="image-20230905204822860" style="zoom:50%;" />
+<img src="./images/sum.png" alt="image-20230905204822860" style="zoom:50%;" />
 
 综上所示，我们通过oneAPI将ThunderSVM中的C_SVC模型的训练从CPU移植到了GPU上，并通过多种优化方法最终使训练加速了34倍。
